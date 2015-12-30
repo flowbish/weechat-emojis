@@ -31,6 +31,7 @@
 import os
 import re
 import sys
+import string
 
 # I'm sorry.
 try:
@@ -50,6 +51,9 @@ SCRIPT_DESCRIPTION = "Allows you to spam emojis based on :triggers:"
 
 # Emojis cache
 EMOJIS = {}
+
+# Buffer temporary completions
+COMPLETIONS = {}
 
 # Decode required for proper calculation of string
 # length, and to avoid some bugs when concatenating
@@ -78,8 +82,9 @@ def load_emojis(dbfile):
 
     with open(dbfile) as f:
         for line in f:
-            if line.startswith(':'):
-                EMOJIS[line.rstrip()] = f.next().rstrip()
+            line_stripped = line.rstrip()
+            if line_stripped.startswith(':') and line_stripped.endswith(':'):
+                EMOJIS[line_stripped] = f.next().rstrip()
             else:
                 weechat.prnt("", "%s%s: Malformed line in %s: %s" \
                     % (weechat.prefix("error"), SCRIPT_NAME, f.name, line))
@@ -134,7 +139,7 @@ def complete_cb(data, bufferptr, command):
     line = decode(weechat.buffer_get_string(bufferptr, 'input'))
     caret_pos = weechat.buffer_get_integer(bufferptr, 'input_pos')
 
-    match = re.search('(:\w+$)', line[:caret_pos])
+    match = re.search(r'(:[^:\s]+:?$)', line[:caret_pos])
     if not match:
         return weechat.WEECHAT_RC_OK
 
@@ -144,15 +149,24 @@ def complete_cb(data, bufferptr, command):
     tw_start = caret_pos - tw_length
     tw_end = caret_pos
 
-    completion = ""
-    for key, value in EMOJIS.iteritems():
-        if key.startswith(tw):
-            completion = decode(value)
-            break
+    if bufferptr in COMPLETIONS and tw == COMPLETIONS[bufferptr][0]:
+        # cycle through completions if we'd already made a list
+        # if there is only one completion, nothing happens
+        if len(COMPLETIONS[bufferptr]) <= 1:
+            return weechat.WEECHAT_RC_OK
+        completions = COMPLETIONS[bufferptr] = COMPLETIONS[bufferptr][1:] + COMPLETIONS[bufferptr][:1]
+    else:
+        # start a new list of completions
+        completions = []
+        for key, value in EMOJIS.iteritems():
+            if key.startswith(tw):
+                completions.append(decode(key))
+        completions.sort()
+        COMPLETIONS[bufferptr] = completions
 
-    if completion:
-        line = line[:tw_start] + completion + line[tw_end:]
-        new_caret_pos = caret_pos - tw_length + len(completion)
+    if completions:
+        line = line[:tw_start] + completions[0] + line[tw_end:]
+        new_caret_pos = caret_pos - tw_length + len(completions[0])
         weechat.buffer_set(bufferptr, 'input', encode(line))
         weechat.buffer_set(bufferptr, 'input_pos', str(new_caret_pos))
 
@@ -171,6 +185,28 @@ def reload_emojis_cb(data, bufferptr, args):
     reload_emojis()
     return weechat.WEECHAT_RC_OK
 
+
+def collapse_cb(data, modifier, modifier_string, string):
+    line = string
+    caret_pos = weechat.buffer_get_integer(data, 'input_pos')
+
+    matches = list(re.finditer(r'(:[^:\s]+:)', line))
+    if not matches:
+        return line
+
+    shrink = 0
+    for match in matches:
+        name = match.group(0)
+        if name not in EMOJIS:
+            continue
+        name_length = len(name)
+        name_start = match.start() - shrink
+        name_end = match.end() - shrink
+        emoji = EMOJIS[name]
+        shrink += name_end - name_start + len(emoji)
+        line = line[:name_start] + emoji + line[name_end:]
+
+    return line
 
 def main():
     """ Entry point, initializes everything  """
@@ -201,6 +237,7 @@ def main():
         "configuration_cb", "")
     weechat.hook_command_run("/input return", "transform_cb", "")
     weechat.hook_command_run("/input complete*", "complete_cb", "")
+    #weechat.hook_modifier("input_text_display", "collapse_cb", "")
 
     # Command callbacks
     weechat.hook_command("reloademojis", "reload emojis from file",
