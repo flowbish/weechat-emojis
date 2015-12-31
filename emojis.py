@@ -149,7 +149,7 @@ def complete_cb(data, bufferptr, command):
     tw_start = caret_pos - tw_length
     tw_end = caret_pos
 
-    if bufferptr in COMPLETIONS and tw == COMPLETIONS[bufferptr][0]:
+    if bufferptr in COMPLETIONS and COMPLETIONS[bufferptr] and tw == COMPLETIONS[bufferptr][0]:
         # cycle through completions if we'd already made a list
         # if there is only one completion, nothing happens
         if len(COMPLETIONS[bufferptr]) <= 1:
@@ -162,15 +162,15 @@ def complete_cb(data, bufferptr, command):
             if key.startswith(tw):
                 completions.append(decode(key))
         completions.sort()
-        COMPLETIONS[bufferptr] = completions
 
     if completions:
+        COMPLETIONS[bufferptr] = completions
         line = line[:tw_start] + completions[0] + line[tw_end:]
         new_caret_pos = caret_pos - tw_length + len(completions[0])
         weechat.buffer_set(bufferptr, 'input', encode(line))
         weechat.buffer_set(bufferptr, 'input_pos', str(new_caret_pos))
 
-    return weechat.WEECHAT_RC_OK
+    return weechat.WEECHAT_RC_OK_EAT
 
 def configuration_cb(data, option, value):
     """ Configuration change callback """
