@@ -133,9 +133,6 @@ def transform_cb(data, bufferptr, command):
 def complete_cb(data, bufferptr, command):
     """ Apply transformation to input line in specified buffer """
 
-    if command != "/input complete_next":
-        return weechat.WEECHAT_RC_OK
-
     line = decode(weechat.buffer_get_string(bufferptr, 'input'))
     caret_pos = weechat.buffer_get_integer(bufferptr, 'input_pos')
 
@@ -154,7 +151,10 @@ def complete_cb(data, bufferptr, command):
         # if there is only one completion, nothing happens
         if len(COMPLETIONS[bufferptr]) <= 1:
             return weechat.WEECHAT_RC_OK
-        completions = COMPLETIONS[bufferptr] = COMPLETIONS[bufferptr][1:] + COMPLETIONS[bufferptr][:1]
+        if command == "/input complete_next":
+            completions = COMPLETIONS[bufferptr][1:] + COMPLETIONS[bufferptr][:1]
+        elif command == "/input complete_previous":
+            completions = COMPLETIONS[bufferptr][-1:] + COMPLETIONS[bufferptr][:-1]
     else:
         # start a new list of completions
         completions = []
