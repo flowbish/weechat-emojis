@@ -45,7 +45,7 @@ except ImportError:
 # Global / Static script values
 SCRIPT_NAME = "emojis"
 SCRIPT_AUTHOR = "Alexandre Gauthier <alex@underwares.org>"
-SCRIPT_VERSION = "0.1"
+SCRIPT_VERSION = "0.2"
 SCRIPT_LICENSE = "BSD"
 SCRIPT_DESCRIPTION = "Allows you to spam emojis based on :triggers:"
 
@@ -89,7 +89,6 @@ def load_emojis(dbfile):
                 weechat.prnt("", "%s%s: Malformed line in %s: %s" \
                     % (weechat.prefix("error"), SCRIPT_NAME, f.name, line))
 
-
         weechat.prnt("", "%s: Loaded %d knifaisms." \
             % (SCRIPT_NAME, len(EMOJIS)))
 
@@ -98,7 +97,7 @@ def reload_emojis():
     global EMOJIS
 
     weechat.prnt("", "%s: Reloading emojis from %s" \
-            % (SCRIPT_NAME, weechat.config_get_plugin("dbfile")))
+                 % (SCRIPT_NAME, weechat.config_get_plugin("dbfile")))
 
     # Clear out emojis before reload.
     EMOJIS = {}
@@ -172,19 +171,21 @@ def complete_cb(data, bufferptr, command):
 
     return weechat.WEECHAT_RC_OK_EAT
 
+def add_emoji(name, emoji):
+    """ Add an emoji in the current weechat session, and save it to the database file """
+    colonized_name = ':' + name + ':'
+    EMOJIS[colonized_name] = emoji
+    dbfile = weechat.config_get_plugin("dbfile")
+    with open(dbfile, 'a') as f:
+        f.write(colonized_name + "\n")
+        f.write(emoji + "\n")
+
 def configuration_cb(data, option, value):
     """ Configuration change callback """
 
     weechat.prnt("", "%s: Configuration change detected." % (SCRIPT_NAME))
     reload_emojis()
     return weechat.WEECHAT_RC_OK
-
-def reload_emojis_cb(data, bufferptr, args):
-    """ Command callback wrapper around reload_emojis() """
-
-    reload_emojis()
-    return weechat.WEECHAT_RC_OK
-
 
 def collapse_cb(data, modifier, modifier_string, string):
     line = string
@@ -207,6 +208,47 @@ def collapse_cb(data, modifier, modifier_string, string):
         line = line[:name_start] + emoji + line[name_end:]
 
     return line
+
+def emoji_name_completion_cb(data, completion_item, bufferptr, completion):
+    for name in EMOJIS.keys():
+        # remove surrounding colons
+        name = name[1:-1]
+        weechat.hook_completion_list_add(completion, name, 0, weechat.WEECHAT_LIST_POS_SORT)
+    return weechat.WEECHAT_RC_OK
+
+def emojis_cb(data, bufferptr, args):
+    args = args.split(" ")
+    if not args:
+        weechat.prnt("", "%s%s: invalid arguments (help on command: /help %s)" % (weechat.prefix("error"), SCRIPT_NAME, SCRIPT_NAME))
+        return weechat.WEECHAT_RC_OK
+    if args[0] == "reload":
+        # reload emoji database from file
+        reload_emojis()
+        return weechat.WEECHAT_RC_OK
+    if args[0] == "add" and len(args) == 3:
+        # add new emoji to database
+        name, emoji = args[1:3]
+        colonized_name = ":{}:".format(name)
+        if ":" in name:
+            weechat.prnt("", "%s%s: name may not contain ':'" % (weechat.prefix("error"), SCRIPT_NAME))
+            return weechat.WEECHAT_RC_OK
+        if colonized_name in EMOJIS:
+            weechat.prnt("", "%s%s: emoji with name \"%s\" already exists" % (weechat.prefix("error"), SCRIPT_NAME, name))
+            return weechat.WEECHAT_RC_OK
+        add_emoji(name, emoji)
+        weechat.prnt("", "%s: emoji %s added: %s" % (SCRIPT_NAME, name, emoji))
+        return weechat.WEECHAT_RC_OK
+    if args[0] == "show" and len(args) == 2:
+        name = args[1]
+        colonized_name = ":{}:".format(name)
+        if colonized_name not in EMOJIS:
+            weechat.prnt("", "%s%s: emoji with name \"%s\" does not exist" % (weechat.prefix("error"), SCRIPT_NAME, name))
+            return weechat.WEECHAT_RC_OK
+        emoji = EMOJIS[colonized_name]
+        weechat.prnt("", "%s: %s: %s" % (SCRIPT_NAME, name, emoji))
+        return weechat.WEECHAT_RC_OK
+    weechat.prnt("", "%s%s: invalid arguments (help on command: /help %s)" % (weechat.prefix("error"), SCRIPT_NAME, SCRIPT_NAME))
+    return weechat.WEECHAT_RC_OK
 
 def main():
     """ Entry point, initializes everything  """
@@ -240,8 +282,20 @@ def main():
     #weechat.hook_modifier("input_text_display", "collapse_cb", "")
 
     # Command callbacks
-    weechat.hook_command("reloademojis", "reload emojis from file",
-        "","","", "reload_emojis_cb", "")
+    weechat.hook_command(  # command name
+                           SCRIPT_NAME,
+                           # description
+                           " display :common_name: with its emoji equivalent",
+                           # arguments
+                           "reload"
+                           " || add <name> <emoji>"
+                           " || show <emoji>",
+                           # description of arguments
+                           " name: emoji name, sans colons\n"
+                           "emoji: text that replaces :name:\n",
+                           # completions
+                           "reload || add || show %(emoji_name)", "emojis_cb", "")
+    weechat.hook_completion("emoji_name", "Emoji name", "emoji_name_completion_cb", "")
 
     dbfile = weechat.config_get_plugin("dbfile")
 
@@ -257,4 +311,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
