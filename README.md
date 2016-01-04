@@ -1,30 +1,37 @@
 The shittiest weechat plugin ever. Automagical emojis!
-Because we all <3 Knifa on #glasnost.
 ------------------------------------------------------------------------------
 
-                        (ﾉﾟ-ﾟ)ﾉ☆ INSTRUCTIONS ★ヽ(°ｰ° )ﾉ
+                    :sparkles::boom::star: INSTRUCTIONS :+1::sparkles::star2:
 
-1) Copy/symlink script as ~/.weechat/python/emojis.py
-2) Copy/symlink emojis database as ~/.weechat/emojis-db.dat
-3) /script load emojis.py
-4) Marvel at your ability to use things like :table:
+1. Copy/symlink script as `~/.weechat/python/emojis.py`
+2. Copy/symlink emojis database as `~/.weechat/emojis-db.dat`
+3. `/script load emojis.py`
+4. Marvel at your ability to use things like :horse:
 
 Optional:
 
-Symlink into ~/.weechat/python/autoload to load automatically
+Symlink into `~/.weechat/python/autoload` to load automatically
 
 You can configure an arbitrary path for the emojis database:
-  /set plugins.var.python.emojis.dbfile /path/to/emojis-db.dat
+    /set plugins.var.python.emojis.dbfile /path/to/emojis-db.dat
 
 You can reload the emojis using
-  /reloademojis
+    /emoji reload
+  
+You can add an emoji from within weechat using
+    /emoji add <name> <emoji>
+  
+To display a particular emoji (without sending it to a buffer) use
+    /emoji show <name>
+  
+`emojis.py` supports tab-completion as well!
 
 You may add your own to the database, format is:
 
-  :trigger:
-  emoji
+    :trigger:
+    emoji
 
-Your trigger MUST begin with ':'.
+Your trigger MUST be surrounded with ':'.
 
 The format is compatible with irssi-emojis and the mirc variant from
 Daniel Callander (Knifa).
